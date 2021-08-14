@@ -610,6 +610,108 @@ class DoctolibFR(Doctolib):
     center = URL(r'/centre-de-sante/.*', CenterPage)
 
 
+class IBuilder(metaclass=ABCMeta):
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_PFIZER(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_PFIZER_SECOND(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_PFIZER_THIRD(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_MODERNA(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_MODERNA_SECOND(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_MODERNA_THIRD(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_JANSSEN(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_ASTRAZENECA(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_ASTRAZENECA_SECOND(self):
+        pass
+
+class Product():
+
+    def __init__(self):
+        self.motives = []
+
+
+class Builder(IBuilder):
+
+    def __init__(self, country):
+        self.product = Product()
+        if country == 'fr':
+            self.docto = DoctolibFR()
+        elif country == "de":
+            self.docto = DoctolibDE()
+
+    def build_KEY_PFIZER(self):
+        self.product.motives.append(self.docto.KEY_PFIZER)
+        return self
+
+    def build_KEY_PFIZER_SECOND(self):
+        self.product.motives.append(self.docto.KEY_PFIZER_SECOND)
+        return self
+
+    def build_KEY_PFIZER_THIRD(self):
+        self.product.motives.append(self.docto.KEY_PFIZER_THIRD)
+        return self
+
+    def build_KEY_MODERNA(self):
+        self.product.motives.append(self.docto.KEY_MODERNA)
+        return self
+
+    def build_KEY_MODERNA_SECOND(self):
+        self.product.motives.append(self.docto.KEY_MODERNA_SECOND)
+        return self
+
+    def build_KEY_MODERNA_THIRD(self):
+        self.product.motives.append(self.docto.KEY_MODERNA_THIRD)
+        return self
+
+    def build_KEY_JANSSEN(self):
+        self.product.motives.append(self.docto.KEY_JANSSEN)
+        return self
+
+    def build_KEY_ASTRAZENECA(self):
+        self.product.motives.append(self.docto.KEY_ASTRAZENECA)
+        return self
+
+    def build_KEY_ASTRAZENECA_SECOND(self):
+        self.product.motives.append(self.docto.KEY_ASTRAZENECA_SECOND)
+        return self
+
+    def get_result(self):
+        return self.product
+
+
 class Application:
     @classmethod
     def create_default_logger(cls):
@@ -722,55 +824,55 @@ class Application:
         motives = []
         if not args.pfizer and not args.moderna and not args.janssen and not args.astrazeneca:
             if args.only_second:
-                motives.append(docto.KEY_PFIZER_SECOND)
-                motives.append(docto.KEY_MODERNA_SECOND)
+                Builder(args.country).build_KEY_PFIZER_SECOND()
+                Builder(args.country).build_KEY_MODERNA_SECOND()
+
                 # motives.append(docto.KEY_ASTRAZENECA_SECOND) #do not add AstraZeneca by default
             elif args.only_third:
                 if not docto.KEY_PFIZER_THIRD and not docto.KEY_MODERNA_THIRD:
                     print('Invalid args: No third shot vaccinations in this country')
                     return 1
-                motives.append(docto.KEY_PFIZER_THIRD)
-                motives.append(docto.KEY_MODERNA_THIRD)
+                Builder(args.country).build_KEY_PFIZER_THIRD()
+                Builder(args.country).build_KEY_MODERNA_THIRD()
             else:
-                motives.append(docto.KEY_PFIZER)
-                motives.append(docto.KEY_MODERNA)
-                motives.append(docto.KEY_JANSSEN)
-                # motives.append(docto.KEY_ASTRAZENECA) #do not add AstraZeneca by default
+                Builder(args.country).build_KEY_PFIZER()
+                Builder(args.country).build_KEY_MODERNA()
+                Builder(args.country).build_KEY_JANSSEN()
         if args.pfizer:
             if args.only_second:
-                motives.append(docto.KEY_PFIZER_SECOND)
+                Builder(args.country).build_KEY_PFIZER_SECOND()
             elif args.only_third:
                 if not docto.KEY_PFIZER_THIRD:  # not available in all countries
                     print('Invalid args: Pfizer has no third shot in this country')
                     return 1
-                motives.append(docto.KEY_PFIZER_THIRD)
+                Builder(args.country).build_KEY_PFIZER_THIRD()
             else:
-                motives.append(docto.KEY_PFIZER)
+                Builder(args.country).build_KEY_PFIZER()
         if args.moderna:
             if args.only_second:
-                motives.append(docto.KEY_MODERNA_SECOND)
+                Builder(args.country).build_KEY_MODERNA_SECOND()
             elif args.only_third:
                 if not docto.KEY_MODERNA_THIRD:  # not available in all countries
                     print('Invalid args: Moderna has no third shot in this country')
                     return 1
-                motives.append(docto.KEY_MODERNA_THIRD)
+                Builder(args.country).build_KEY_MODERNA_THIRD()
             else:
-                motives.append(docto.KEY_MODERNA)
+                Builder(args.country).build_KEY_MODERNA()
         if args.janssen:
             if args.only_second or args.only_third:
                 print('Invalid args: Janssen has no second or third shot')
                 return 1
             else:
-                motives.append(docto.KEY_JANSSEN)
+                Builder(args.country).build_KEY_JANSSEN()
         if args.astrazeneca:
             if args.only_second:
-                motives.append(docto.KEY_ASTRAZENECA_SECOND)
+                Builder(args.country).build_KEY_ASTRAZENECA_SECOND()
             elif args.only_third:
                 print('Invalid args: AstraZeneca has no third shot')
                 return 1
             else:
-                motives.append(docto.KEY_ASTRAZENECA)
-
+                Builder(args.country).build_KEY_ASTRAZENECA()
+        motives = Builder(args.country).get_result()
         vaccine_list = [docto.vaccine_motives[motive] for motive in motives]
 
         if args.start_date:
@@ -791,13 +893,13 @@ class Application:
                 return 1
         else:
             end_date = start_date + relativedelta(days=args.time_window)
+
         log('Starting to look for vaccine slots for %s %s between %s and %s...',
             docto.patient['first_name'], docto.patient['last_name'], start_date, end_date)
         log('Vaccines: %s', ', '.join(vaccine_list))
         log('Country: %s ', args.country)
         log('This may take a few minutes/hours, be patient!')
-        adapter = Adapter()
-        cities = adapter.request()
+        cities = [docto.normalize(city) for city in args.city.split(',')]
 
         while True:
             log_ts()
@@ -869,29 +971,6 @@ class Application:
                 print(message)
                 return 1
         return 0
-
-
-class TargetCities(metaclass=ABCMeta):
-    def __init__(self):
-        self._adaptee = Adaptee()
-
-    @abstractmethod
-    def request(self):
-        pass
-
-
-class Adapter(TargetCities):
-    def request(self, docto, args):
-        return self._adaptee.specific_request(docto, args)
-
-
-class Adaptee:
-    """
-    Define an existing interface that needs adapting.
-    """
-
-    def specific_request(self, docto, args):
-        return [docto.normalize(city) for city in args.city.split(',')]
 
 
 if __name__ == '__main__':
