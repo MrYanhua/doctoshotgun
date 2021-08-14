@@ -27,32 +27,53 @@ from woob.browser.url import URL
 from woob.browser.pages import JsonPage, HTMLPage
 from woob.tools.log import createColoredFormatter
 from abc import ABCMeta, abstractmethod
+import copy
+from playsound import playsound as _playsound, PlaysoundException
 
 SLEEP_INTERVAL_AFTER_CONNECTION_ERROR = 5
 SLEEP_INTERVAL_AFTER_LOGIN_ERROR = 10
 SLEEP_INTERVAL_AFTER_CENTER = 1
 SLEEP_INTERVAL_AFTER_RUN = 5
 
-try:
-    from playsound import playsound as _playsound, PlaysoundException
+
+class Soundsinglecton(object):
+    def __new__(cls):
+        if not hasattr(cls, 'instance'):
+            cls.instance = super(Soundsinglecton, cls).__new__(cls)
+        return cls.instance
+
+    try:
+        from playsound import playsound as _playsound, PlaysoundException
+
+        def playsound(*args):
+            try:
+                return _playsound(*args)
+            except (PlaysoundException, ModuleNotFoundError):
+                pass  # do not crash if, for one reason or another, something wrong happens
+    except ImportError:
+        def playsound(*args):
+            pass
 
 
-    def playsound(*args):
-        try:
-            return _playsound(*args)
-        except (PlaysoundException, ModuleNotFoundError):
-            pass  # do not crash if, for one reason or another, something wrong happens
-except ImportError:
-    def playsound(*args):
-        pass
+
+class LogSingletonClass(object):
+  def __new__(cls):
+    if not hasattr(cls, 'instance'):
+      cls.instance = super(LogSingletonClass, cls).__new__(cls)
+    return cls.instance
+
+  def logg(text, *args, **kwargs):
+      print(text, **kwargs)
+
 
 
 def log(text, *args, **kwargs):
+    ls = LogSingletonClass()
     args = (colored(arg, 'yellow') for arg in args)
     if 'color' in kwargs:
         text = colored(text, kwargs.pop('color'))
     text = text % tuple(args)
-    print(text, **kwargs)
+    ls.logg(text, *args, **kwargs)
 
 
 def log_ts(text=None, *args, **kwargs):
@@ -247,6 +268,71 @@ class Doctolib(LoginBrowser):
             session.hooks['response'].append(self.save_response)
 
         self.session = session
+
+    def __int__(self):
+        self.id = None
+        self.BASEURL = None
+        self.vaccine_motives = None
+        self.centers = None
+        self.center = None
+        self.KEY_PFIZER = None
+        self.KEY_PFIZER_SECOND = None
+        self.KEY_PFIZER_THIRD = None
+        self.KEY_MODERNA = None
+        self.KEY_MODERNA_SECOND = None
+        self.KEY_MODERNA_THIRD = None
+        self.KEY_JANSSEN = None
+        self.KEY_ASTRAZENECA = None
+        self.KEY_ASTRAZENECA_SECOND = None
+
+
+    def get_id(self):
+        return self.id
+
+    def set_id(self, sid):
+        self.id = sid
+
+    def get_BASEURL(self):
+        return self.BASEURL
+
+    def get_vaccine_motives(self):
+        return self.vaccine_motives
+
+    def get_centers(self):
+        return self.centers
+
+    def get_center(self):
+        return self.center
+
+    def get_KEY_PFIZER(self):
+        return self.KEY_PFIZER
+
+    def get_KEY_PFIZER_SECOND(self):
+        return self.KEY_PFIZER_SECOND
+
+    def get_KEY_PFIZER_THIRD(self):
+        return self.KEY_PFIZER_THIRD
+
+    def get_KEY_MODERNA(self):
+        return self.KEY_MODERNA
+
+    def get_KEY_MODERNA_SECOND(self):
+        return self.KEY_MODERNA_SECOND
+
+    def get_KEY_MODERNA_THIRD(self):
+        return self.KEY_MODERNA_THIRD
+
+    def get_JANSSEN(self):
+        return self.JANSSEN
+
+    def get_ASTRAZENECA(self):
+        return self.ASTRAZENECA
+
+    def get_ASTRAZENECA_SECOND(self):
+        return self.ASTRAZENECA_SECOND
+
+    def clone(self):
+        return copy.copy(self)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -463,7 +549,8 @@ class Doctolib(LoginBrowser):
             log('  └╴ Appointment not available anymore :( %s', self.page.get_error())
             return False
 
-        playsound('ding.mp3')
+        soundobj = Soundsinglecton()
+        soundobj.playsound('ding.mp3')
 
         if vac_name != "janssen" and not only_second and not only_third:  # janssen has only one shot
             self.second_shot_availabilities.go(
@@ -557,6 +644,27 @@ class Doctolib(LoginBrowser):
         return self.page.doc['confirmed']
 
 
+
+class doctolib_cache:
+    cache = {}
+
+    @staticmethod
+    def get_country(sid):
+        COUNTRY = doctolib_cache.cache.get(sid, None)
+        return COUNTRY.clone()
+
+    @staticmethod
+    def load():
+        de = DoctolibDE()
+        de.set_id("1")
+        doctolib_cache.cache[de.get_id()] = de
+
+        fr = DoctolibFR()
+        de.set_id("2")
+        doctolib_cache.cache[fr.get_id()] = fr
+
+
+
 class DoctolibDE(Doctolib):
     BASEURL = 'https://www.doctolib.de'
     KEY_PFIZER = '6768'
@@ -581,6 +689,32 @@ class DoctolibDE(Doctolib):
     }
     centers = URL(r'/impfung-covid-19-corona/(?P<where>\w+)', CentersPage)
     center = URL(r'/praxis/.*', CenterPage)
+
+    def __int__(self):
+        super().__init__()
+        self.BASEURL = 'https://www.doctolib.de'
+        self.KEY_PFIZER = '6768'
+        self.KEY_PFIZER_SECOND = '6769'
+        self.KEY_PFIZER_THIRD = None
+        self.KEY_MODERNA = '6936'
+        self.KEY_MODERNA_SECOND = '6937'
+        self.KEY_MODERNA_THIRD = None
+        self.KEY_JANSSEN = '7978'
+        self.KEY_ASTRAZENECA = '7109'
+        self.KEY_ASTRAZENECA_SECOND = '7110'
+        self.vaccine_motives = {
+            self.KEY_PFIZER: 'Pfizer',
+            self.KEY_PFIZER_SECOND: 'Zweit.*Pfizer|Pfizer.*Zweit',
+            self.KEY_PFIZER_THIRD: 'Dritt.*Pfizer|Pfizer.*Dritt',
+            self.KEY_MODERNA: 'Moderna',
+            self.KEY_MODERNA_SECOND: 'Zweit.*Moderna|Moderna.*Zweit',
+            self.KEY_MODERNA_THIRD: 'Dritt.*Moderna|Moderna.*Dritt',
+            self.KEY_JANSSEN: 'Janssen',
+            self.KEY_ASTRAZENECA: 'AstraZeneca',
+            self.KEY_ASTRAZENECA_SECOND: 'Zweit.*AstraZeneca|AstraZeneca.*Zweit',
+        }
+        self.centers = URL(r'/impfung-covid-19-corona/(?P<where>\w+)', CentersPage)
+        self.center = URL(r'/praxis/.*', CenterPage)
 
 
 class DoctolibFR(Doctolib):
@@ -608,6 +742,226 @@ class DoctolibFR(Doctolib):
 
     centers = URL(r'/vaccination-covid-19/(?P<where>\w+)', CentersPage)
     center = URL(r'/centre-de-sante/.*', CenterPage)
+
+    def __int__(self):
+        super().__init__()
+        self.BASEURL = 'https://www.doctolib.fr'
+        self.KEY_PFIZER = '6970'
+        self.KEY_PFIZER_SECOND = '6971'
+        self.KEY_PFIZER_THIRD = '8192'
+        self.KEY_MODERNA = '7005'
+        self.KEY_MODERNA_SECOND = '7004'
+        self.KEY_MODERNA_THIRD = '8193'
+        self.KEY_JANSSEN = '7945'
+        self.KEY_ASTRAZENECA = '7107'
+        self.KEY_ASTRAZENECA_SECOND = '7108'
+        self.vaccine_motives = {
+            self.KEY_PFIZER: 'Pfizer',
+            self.KEY_PFIZER_SECOND: '2de.*Pfizer',
+            self.KEY_PFIZER_THIRD: '3e.*Pfizer',
+            self.KEY_MODERNA: 'Moderna',
+            self.KEY_MODERNA_SECOND: '2de.*Moderna',
+            self.KEY_MODERNA_THIRD: '3e.*Moderna',
+            self.KEY_JANSSEN: 'Janssen',
+            self.KEY_ASTRAZENECA: 'AstraZeneca',
+            self.KEY_ASTRAZENECA_SECOND: '2de.*AstraZeneca',
+        }
+        self.centers = URL(r'/vaccination-covid-19/(?P<where>\w+)', CentersPage)
+        self.center = URL(r'/centre-de-sante/.*', CenterPage)
+
+
+class IBuilder(metaclass=ABCMeta):
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_PFIZER(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_PFIZER_SECOND(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_PFIZER_THIRD(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_MODERNA(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_MODERNA_SECOND(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_MODERNA_THIRD(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_JANSSEN(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_ASTRAZENECA(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_KEY_ASTRAZENECA_SECOND(self):
+        pass
+
+class Product():
+
+    def __init__(self):
+        self.motives = []
+
+
+class Builder(IBuilder):
+
+    def __init__(self, country):
+        self.product = Product()
+        if country == 'fr':
+            self.docto = DoctolibFR()
+        elif country == "de":
+            self.docto = DoctolibDE()
+
+    def build_KEY_PFIZER(self):
+        self.product.motives.append(self.docto.KEY_PFIZER)
+        return self
+
+    def build_KEY_PFIZER_SECOND(self):
+        self.product.motives.append(self.docto.KEY_PFIZER_SECOND)
+        return self
+
+    def build_KEY_PFIZER_THIRD(self):
+        self.product.motives.append(self.docto.KEY_PFIZER_THIRD)
+        return self
+
+    def build_KEY_MODERNA(self):
+        self.product.motives.append(self.docto.KEY_MODERNA)
+        return self
+
+    def build_KEY_MODERNA_SECOND(self):
+        self.product.motives.append(self.docto.KEY_MODERNA_SECOND)
+        return self
+
+    def build_KEY_MODERNA_THIRD(self):
+        self.product.motives.append(self.docto.KEY_MODERNA_THIRD)
+        return self
+
+    def build_KEY_JANSSEN(self):
+        self.product.motives.append(self.docto.KEY_JANSSEN)
+        return self
+
+    def build_KEY_ASTRAZENECA(self):
+        self.product.motives.append(self.docto.KEY_ASTRAZENECA)
+        return self
+
+    def build_KEY_ASTRAZENECA_SECOND(self):
+        self.product.motives.append(self.docto.KEY_ASTRAZENECA_SECOND)
+        return self
+
+    def get_result(self):
+        return self.product
+
+
+#This builder is for patient and date
+class IbuilderPaDa(metaclass=ABCMeta):
+
+    @staticmethod
+    @abstractmethod
+    def build_patient(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_date(self):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_result(self):
+        pass
+
+
+class BuilderPaDa(IbuilderPaDa):
+    def __init__(self, argdict):
+        self.argdict = argdict
+        self.product = ProductPaDa(self.argdict)
+        self.patients = argdict[0]
+        self.patient = argdict[1]
+        self.start_date = argdict[2]
+        self.end_date = argdict[3]
+        self.time_window = argdict[4]
+        self.docto = argdict[5]
+
+    def build_patient(self):
+        if len(self.patients) == 0:
+            print(
+                "It seems that you don't have any Patient registered in your Doctolib account. Please fill your Patient data on Doctolib Website.")
+            return 1
+        if self.patient >= 0 and self.patient < len(self.patients):
+            self.docto.patient = self.patients[self.patient]
+        elif len(self.patients) > 1:
+            print('Available patients are:')
+            for i, self.patient in enumerate(self.patients):
+                print('* [%s] %s %s' %
+                      (i, self.patient['first_name'], self.patient['last_name']))
+            while True:
+                print('For which patient do you want to book a slot?',
+                      end=' ', flush=True)
+                try:
+                    self.docto.patient = self.patients[int(sys.stdin.readline().strip())]
+                except (ValueError, IndexError):
+                    continue
+                else:
+                    break
+        else:
+            self.docto.patient = self.patients[0]
+        self.product.resultdict[0] = self.docto.patient
+
+    def build_date(self):
+        if self.start_date:
+            try:
+                start_date = datetime.datetime.strptime(
+                    self.start_date, '%d/%m/%Y').date()
+            except ValueError as e:
+                print('Invalid value for --start-date: %s' % e)
+                return 1
+        else:
+            start_date = datetime.date.today()
+        if self.end_date:
+            try:
+                end_date = datetime.datetime.strptime(
+                    self.end_date, '%d/%m/%Y').date()
+            except ValueError as e:
+                print('Invalid value for --end-date: %s' % e)
+                return 1
+        else:
+            end_date = start_date + relativedelta(days=self.time_window)
+        self.product.resultdict[1] = self.start_date
+        self.product.resultdict[2] = self.end_date
+
+    def get_result(self):
+        return self.product.resultdict
+
+
+
+class ProductPaDa:
+    def __init__(self, *args):
+        self.argdict = args
+        self.resultdict = [None]*3
+
+    def get_result(self):
+        return BuilderPaDa(self.argdict).get_result()
+
 
 
 class Application:
@@ -696,108 +1050,74 @@ class Application:
             return 1
 
         patients = docto.get_patients()
-        if len(patients) == 0:
-            print(
-                "It seems that you don't have any Patient registered in your Doctolib account. Please fill your Patient data on Doctolib Website.")
-            return 1
-        if args.patient >= 0 and args.patient < len(patients):
-            docto.patient = patients[args.patient]
-        elif len(patients) > 1:
-            print('Available patients are:')
-            for i, patient in enumerate(patients):
-                print('* [%s] %s %s' %
-                      (i, patient['first_name'], patient['last_name']))
-            while True:
-                print('For which patient do you want to book a slot?',
-                      end=' ', flush=True)
-                try:
-                    docto.patient = patients[int(sys.stdin.readline().strip())]
-                except (ValueError, IndexError):
-                    continue
-                else:
-                    break
-        else:
-            docto.patient = patients[0]
+        newdict = [patients, args.patient, args.start_date, args.end_date, args.time_window, docto]
+        probj = ProductPaDa(newdict).get_result()
+        docto.patient = probj.resultdict[0]
+        start_date = probj.resultdict[1]
+        end_date = probj.resultdict[2]
+
 
         motives = []
         if not args.pfizer and not args.moderna and not args.janssen and not args.astrazeneca:
             if args.only_second:
-                motives.append(docto.KEY_PFIZER_SECOND)
-                motives.append(docto.KEY_MODERNA_SECOND)
+                Builder(args.country).build_KEY_PFIZER_SECOND()
+                Builder(args.country).build_KEY_MODERNA_SECOND()
+
                 # motives.append(docto.KEY_ASTRAZENECA_SECOND) #do not add AstraZeneca by default
             elif args.only_third:
                 if not docto.KEY_PFIZER_THIRD and not docto.KEY_MODERNA_THIRD:
                     print('Invalid args: No third shot vaccinations in this country')
                     return 1
-                motives.append(docto.KEY_PFIZER_THIRD)
-                motives.append(docto.KEY_MODERNA_THIRD)
+                Builder(args.country).build_KEY_PFIZER_THIRD()
+                Builder(args.country).build_KEY_MODERNA_THIRD()
             else:
-                motives.append(docto.KEY_PFIZER)
-                motives.append(docto.KEY_MODERNA)
-                motives.append(docto.KEY_JANSSEN)
-                # motives.append(docto.KEY_ASTRAZENECA) #do not add AstraZeneca by default
+                Builder(args.country).build_KEY_PFIZER()
+                Builder(args.country).build_KEY_MODERNA()
+                Builder(args.country).build_KEY_JANSSEN()
         if args.pfizer:
             if args.only_second:
-                motives.append(docto.KEY_PFIZER_SECOND)
+                Builder(args.country).build_KEY_PFIZER_SECOND()
             elif args.only_third:
                 if not docto.KEY_PFIZER_THIRD:  # not available in all countries
                     print('Invalid args: Pfizer has no third shot in this country')
                     return 1
-                motives.append(docto.KEY_PFIZER_THIRD)
+                Builder(args.country).build_KEY_PFIZER_THIRD()
             else:
-                motives.append(docto.KEY_PFIZER)
+                Builder(args.country).build_KEY_PFIZER()
         if args.moderna:
             if args.only_second:
-                motives.append(docto.KEY_MODERNA_SECOND)
+                Builder(args.country).build_KEY_MODERNA_SECOND()
             elif args.only_third:
                 if not docto.KEY_MODERNA_THIRD:  # not available in all countries
                     print('Invalid args: Moderna has no third shot in this country')
                     return 1
-                motives.append(docto.KEY_MODERNA_THIRD)
+                Builder(args.country).build_KEY_MODERNA_THIRD()
             else:
-                motives.append(docto.KEY_MODERNA)
+                Builder(args.country).build_KEY_MODERNA()
         if args.janssen:
             if args.only_second or args.only_third:
                 print('Invalid args: Janssen has no second or third shot')
                 return 1
             else:
-                motives.append(docto.KEY_JANSSEN)
+                Builder(args.country).build_KEY_JANSSEN()
         if args.astrazeneca:
             if args.only_second:
-                motives.append(docto.KEY_ASTRAZENECA_SECOND)
+                Builder(args.country).build_KEY_ASTRAZENECA_SECOND()
             elif args.only_third:
                 print('Invalid args: AstraZeneca has no third shot')
                 return 1
             else:
-                motives.append(docto.KEY_ASTRAZENECA)
-
+                Builder(args.country).build_KEY_ASTRAZENECA()
+        motives = Builder(args.country).get_result()
         vaccine_list = [docto.vaccine_motives[motive] for motive in motives]
 
-        if args.start_date:
-            try:
-                start_date = datetime.datetime.strptime(
-                    args.start_date, '%d/%m/%Y').date()
-            except ValueError as e:
-                print('Invalid value for --start-date: %s' % e)
-                return 1
-        else:
-            start_date = datetime.date.today()
-        if args.end_date:
-            try:
-                end_date = datetime.datetime.strptime(
-                    args.end_date, '%d/%m/%Y').date()
-            except ValueError as e:
-                print('Invalid value for --end-date: %s' % e)
-                return 1
-        else:
-            end_date = start_date + relativedelta(days=args.time_window)
+
         log('Starting to look for vaccine slots for %s %s between %s and %s...',
             docto.patient['first_name'], docto.patient['last_name'], start_date, end_date)
         log('Vaccines: %s', ', '.join(vaccine_list))
         log('Country: %s ', args.country)
         log('This may take a few minutes/hours, be patient!')
-        adapter = Adapter()
-        cities = adapter.request()
+        cities = [docto.normalize(city) for city in args.city.split(',')]
 
         while True:
             log_ts()
@@ -869,29 +1189,6 @@ class Application:
                 print(message)
                 return 1
         return 0
-
-
-class TargetCities(metaclass=ABCMeta):
-    def __init__(self):
-        self._adaptee = Adaptee()
-
-    @abstractmethod
-    def request(self):
-        pass
-
-
-class Adapter(TargetCities):
-    def request(self, docto, args):
-        return self._adaptee.specific_request(docto, args)
-
-
-class Adaptee:
-    """
-    Define an existing interface that needs adapting.
-    """
-
-    def specific_request(self, docto, args):
-        return [docto.normalize(city) for city in args.city.split(',')]
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import abc
 import sys
 import re
 import logging
@@ -26,7 +27,6 @@ from woob.browser.browsers import LoginBrowser
 from woob.browser.url import URL
 from woob.browser.pages import JsonPage, HTMLPage
 from woob.tools.log import createColoredFormatter
-from abc import ABCMeta, abstractmethod
 
 SLEEP_INTERVAL_AFTER_CONNECTION_ERROR = 5
 SLEEP_INTERVAL_AFTER_LOGIN_ERROR = 10
@@ -247,6 +247,9 @@ class Doctolib(LoginBrowser):
             session.hooks['response'].append(self.save_response)
 
         self.session = session
+
+    def __int__(self, Brandkey):
+        self.brandkey = Brandkey
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -557,17 +560,85 @@ class Doctolib(LoginBrowser):
         return self.page.doc['confirmed']
 
 
+
+
+class Brandkey:
+    keyp = None
+    keyp2 = None
+    keyp3 = None
+    keym = None
+    keym2 = None
+    keym3 = None
+    keyj = None
+    keya = None
+    keya2 = None
+
+    def setkey(self):
+        pass
+
+class DEkey(Brandkey):
+    def setkey(self):
+        self.keyp = '6768'
+        self.keyp2 = '6769'
+        self.key3 = None
+        self.keym = '6936'
+        self.keym2 = '6937'
+        self.keym3 = None
+        self.keyj = '7978'
+        self.keya = '7109'
+        self.keya2 = '7110'
+
+class FRkey(Brandkey):
+    def setkey(self):
+        self.keyp = '6970'
+        self.keyp2 = '6971'
+        self.key3 = '8192'
+        self.keym = '7005'
+        self.keym2 = '7004'
+        self.keym3 = '8193'
+        self.keyj = '7945'
+        self.keya = '7107'
+        self.keya2 = '7108'
+
+
+class Country:
+    def __init__(self, Brandkey):
+        self.brandkey = Brandkey
+
+    def produce(self):
+        pass
+
+
+class Fr(Country):
+    def __init__(self, Brandkey):
+        super().__init__(Brandkey)
+
+    def produce(self):
+        self.brandkey.setkey()
+
+
+class DE(Country):
+    def __init__(self, Brandkey):
+        super().__init__(Brandkey)
+
+    def produce(self):
+        self.brandkey.setkey()
+
+
 class DoctolibDE(Doctolib):
     BASEURL = 'https://www.doctolib.de'
-    KEY_PFIZER = '6768'
-    KEY_PFIZER_SECOND = '6769'
-    KEY_PFIZER_THIRD = None
-    KEY_MODERNA = '6936'
-    KEY_MODERNA_SECOND = '6937'
-    KEY_MODERNA_THIRD = None
-    KEY_JANSSEN = '7978'
-    KEY_ASTRAZENECA = '7109'
-    KEY_ASTRAZENECA_SECOND = '7110'
+    dekey = DEkey()
+    de = DE(dekey)
+    de.produce()
+    KEY_PFIZER = dekey.keyp
+    KEY_PFIZER_SECOND = dekey.keyp2
+    KEY_PFIZER_THIRD = dekey.keyp3
+    KEY_MODERNA = dekey.keym
+    KEY_MODERNA_SECOND = dekey.keym2
+    KEY_MODERNA_THIRD = dekey.keym3
+    KEY_JANSSEN = dekey.keyj
+    KEY_ASTRAZENECA = dekey.keya
+    KEY_ASTRAZENECA_SECOND = dekey.keya2
     vaccine_motives = {
         KEY_PFIZER: 'Pfizer',
         KEY_PFIZER_SECOND: 'Zweit.*Pfizer|Pfizer.*Zweit',
@@ -585,15 +656,18 @@ class DoctolibDE(Doctolib):
 
 class DoctolibFR(Doctolib):
     BASEURL = 'https://www.doctolib.fr'
-    KEY_PFIZER = '6970'
-    KEY_PFIZER_SECOND = '6971'
-    KEY_PFIZER_THIRD = '8192'
-    KEY_MODERNA = '7005'
-    KEY_MODERNA_SECOND = '7004'
-    KEY_MODERNA_THIRD = '8193'
-    KEY_JANSSEN = '7945'
-    KEY_ASTRAZENECA = '7107'
-    KEY_ASTRAZENECA_SECOND = '7108'
+    frkey = FRkey()
+    fr = Fr(frkey)
+    fr.produce()
+    KEY_PFIZER = frkey.keyp
+    KEY_PFIZER_SECOND = frkey.keyp2
+    KEY_PFIZER_THIRD = frkey.keyp3
+    KEY_MODERNA = frkey.keym
+    KEY_MODERNA_SECOND = frkey.keym2
+    KEY_MODERNA_THIRD = frkey.keym3
+    KEY_JANSSEN = frkey.keyj
+    KEY_ASTRAZENECA = frkey.keya
+    KEY_ASTRAZENECA_SECOND = frkey.keya2
     vaccine_motives = {
         KEY_PFIZER: 'Pfizer',
         KEY_PFIZER_SECOND: '2de.*Pfizer',
@@ -608,6 +682,53 @@ class DoctolibFR(Doctolib):
 
     centers = URL(r'/vaccination-covid-19/(?P<where>\w+)', CentersPage)
     center = URL(r'/centre-de-sante/.*', CenterPage)
+
+
+class PatientTarget(metaclass=abc.ABCMeta):
+    def __init__(self):
+        self._adaptee = Patient()
+
+    @abc.abstractmethod
+    def request(self):
+        pass
+
+
+class PatientAdapter(PatientTarget):
+    def __init__(self, docto, args):
+        self.docto = docto
+        self.args = args
+
+    def request(self):
+        self._adaptee.getpatient(self.docto, self.args)
+
+
+class Patient:
+    def getpatient(self, docto, args):
+
+        patients = docto.get_patients()
+        if len(patients) == 0:
+            print(
+                "It seems that you don't have any Patient registered in your Doctolib account. Please fill your Patient data on Doctolib Website.")
+            return 1
+        if args.patient >= 0 and args.patient < len(patients):
+            docto.patient = patients[args.patient]
+        elif len(patients) > 1:
+            print('Available patients are:')
+            for i, patient in enumerate(patients):
+                print('* [%s] %s %s' %
+                      (i, patient['first_name'], patient['last_name']))
+            while True:
+                print('For which patient do you want to book a slot?',
+                      end=' ', flush=True)
+                try:
+                    docto.patient = patients[int(sys.stdin.readline().strip())]
+                except (ValueError, IndexError):
+                    continue
+                else:
+                    break
+        else:
+            docto.patient = patients[0]
+        return docto.patient
 
 
 class Application:
@@ -695,29 +816,10 @@ class Application:
         if not docto.do_login(args.code):
             return 1
 
-        patients = docto.get_patients()
-        if len(patients) == 0:
-            print(
-                "It seems that you don't have any Patient registered in your Doctolib account. Please fill your Patient data on Doctolib Website.")
-            return 1
-        if args.patient >= 0 and args.patient < len(patients):
-            docto.patient = patients[args.patient]
-        elif len(patients) > 1:
-            print('Available patients are:')
-            for i, patient in enumerate(patients):
-                print('* [%s] %s %s' %
-                      (i, patient['first_name'], patient['last_name']))
-            while True:
-                print('For which patient do you want to book a slot?',
-                      end=' ', flush=True)
-                try:
-                    docto.patient = patients[int(sys.stdin.readline().strip())]
-                except (ValueError, IndexError):
-                    continue
-                else:
-                    break
-        else:
-            docto.patient = patients[0]
+        #pat = Patient()
+        #docto.patient = pat.getpatient(docto, args)
+        patientadapter = PatientAdapter(docto, args)
+        patientadapter.request()
 
         motives = []
         if not args.pfizer and not args.moderna and not args.janssen and not args.astrazeneca:
@@ -796,8 +898,7 @@ class Application:
         log('Vaccines: %s', ', '.join(vaccine_list))
         log('Country: %s ', args.country)
         log('This may take a few minutes/hours, be patient!')
-        adapter = Adapter()
-        cities = adapter.request()
+        cities = [docto.normalize(city) for city in args.city.split(',')]
 
         while True:
             log_ts()
@@ -841,8 +942,7 @@ class Application:
 
                     log('Center %(name_with_title)s (%(city)s):' % center)
 
-                    if docto.try_to_book(center, vaccine_list, start_date, end_date, args.only_second, args.only_third,
-                                         args.dry_run):
+                    if docto.try_to_book(center, vaccine_list, start_date, end_date, args.only_second, args.only_third, args.dry_run):
                         log('')
                         log('💉 %s Congratulations.' %
                             colored('Booked!', 'green', attrs=('bold',)))
@@ -851,8 +951,7 @@ class Application:
                     sleep(SLEEP_INTERVAL_AFTER_CENTER)
 
                     log('')
-                log('No free slots found at selected centers. Trying another round in %s sec...',
-                    SLEEP_INTERVAL_AFTER_RUN)
+                log('No free slots found at selected centers. Trying another round in %s sec...', SLEEP_INTERVAL_AFTER_RUN)
                 sleep(SLEEP_INTERVAL_AFTER_RUN)
             except CityNotFound as e:
                 print('\n%s: City %s not found. Make sure you selected a city from the available countries.' % (
@@ -869,29 +968,6 @@ class Application:
                 print(message)
                 return 1
         return 0
-
-
-class TargetCities(metaclass=ABCMeta):
-    def __init__(self):
-        self._adaptee = Adaptee()
-
-    @abstractmethod
-    def request(self):
-        pass
-
-
-class Adapter(TargetCities):
-    def request(self, docto, args):
-        return self._adaptee.specific_request(docto, args)
-
-
-class Adaptee:
-    """
-    Define an existing interface that needs adapting.
-    """
-
-    def specific_request(self, docto, args):
-        return [docto.normalize(city) for city in args.city.split(',')]
 
 
 if __name__ == '__main__':
