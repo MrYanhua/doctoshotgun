@@ -33,6 +33,48 @@ SLEEP_INTERVAL_AFTER_LOGIN_ERROR = 10
 SLEEP_INTERVAL_AFTER_CENTER = 1
 SLEEP_INTERVAL_AFTER_RUN = 5
 
+
+class IIterator(metaclass=ABCMeta):
+    @staticmethod
+    @abstractmethod
+    def has_next():
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def next():
+        pass
+
+
+class Iterable(IIterator):
+    def __init__(self, aggregates):
+        self.index = 0
+        self.aggregates = aggregates
+
+    def next(self):
+        if self.index < len(self.aggregates):
+            aggregate = self.aggregates[self.index]
+            self.index += 1
+            return aggregate
+        raise Exception("AtEndOfIteratorException", "At End of Iterator")
+
+    def has_next(self):
+        return self.index < len(self.aggregates)
+
+
+class IAggregate(metaclass=ABCMeta):
+    @staticmethod
+    @abstractmethod
+    def method():
+        pass
+
+
+class Aggregate(IAggregate):
+    @staticmethod
+    def method():
+        print("Go through!")
+
+
 try:
     from playsound import playsound as _playsound, PlaysoundException
 
@@ -93,8 +135,9 @@ class ChallengePage(JsonPage):
 
 class CentersPage(HTMLPage):
     def iter_centers_ids(self):
-        for div in self.doc.xpath('//div[@class="js-dl-search-results-calendar"]'):
-            data = json.loads(div.attrib['data-props'])
+        ITERABLE = Iterable(self.doc.xpath('//div[@class="js-dl-search-results-calendar"]'))
+        while ITERABLE.has_next():
+            data = json.loads(ITERABLE.next().attrib['data-props'])
             yield data['searchResultId']
 
     def get_next_page(self):
@@ -610,108 +653,6 @@ class DoctolibFR(Doctolib):
     center = URL(r'/centre-de-sante/.*', CenterPage)
 
 
-class IBuilder(metaclass=ABCMeta):
-
-    @staticmethod
-    @abstractmethod
-    def build_KEY_PFIZER(self):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def build_KEY_PFIZER_SECOND(self):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def build_KEY_PFIZER_THIRD(self):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def build_KEY_MODERNA(self):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def build_KEY_MODERNA_SECOND(self):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def build_KEY_MODERNA_THIRD(self):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def build_KEY_JANSSEN(self):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def build_KEY_ASTRAZENECA(self):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def build_KEY_ASTRAZENECA_SECOND(self):
-        pass
-
-class Product():
-
-    def __init__(self):
-        self.motives = []
-
-
-class Builder(IBuilder):
-
-    def __init__(self, country):
-        self.product = Product()
-        if country == 'fr':
-            self.docto = DoctolibFR()
-        elif country == "de":
-            self.docto = DoctolibDE()
-
-    def build_KEY_PFIZER(self):
-        self.product.motives.append(self.docto.KEY_PFIZER)
-        return self
-
-    def build_KEY_PFIZER_SECOND(self):
-        self.product.motives.append(self.docto.KEY_PFIZER_SECOND)
-        return self
-
-    def build_KEY_PFIZER_THIRD(self):
-        self.product.motives.append(self.docto.KEY_PFIZER_THIRD)
-        return self
-
-    def build_KEY_MODERNA(self):
-        self.product.motives.append(self.docto.KEY_MODERNA)
-        return self
-
-    def build_KEY_MODERNA_SECOND(self):
-        self.product.motives.append(self.docto.KEY_MODERNA_SECOND)
-        return self
-
-    def build_KEY_MODERNA_THIRD(self):
-        self.product.motives.append(self.docto.KEY_MODERNA_THIRD)
-        return self
-
-    def build_KEY_JANSSEN(self):
-        self.product.motives.append(self.docto.KEY_JANSSEN)
-        return self
-
-    def build_KEY_ASTRAZENECA(self):
-        self.product.motives.append(self.docto.KEY_ASTRAZENECA)
-        return self
-
-    def build_KEY_ASTRAZENECA_SECOND(self):
-        self.product.motives.append(self.docto.KEY_ASTRAZENECA_SECOND)
-        return self
-
-    def get_result(self):
-        return self.product
-
-
 class Application:
     @classmethod
     def create_default_logger(cls):
@@ -824,55 +765,55 @@ class Application:
         motives = []
         if not args.pfizer and not args.moderna and not args.janssen and not args.astrazeneca:
             if args.only_second:
-                Builder(args.country).build_KEY_PFIZER_SECOND()
-                Builder(args.country).build_KEY_MODERNA_SECOND()
-
+                motives.append(docto.KEY_PFIZER_SECOND)
+                motives.append(docto.KEY_MODERNA_SECOND)
                 # motives.append(docto.KEY_ASTRAZENECA_SECOND) #do not add AstraZeneca by default
             elif args.only_third:
                 if not docto.KEY_PFIZER_THIRD and not docto.KEY_MODERNA_THIRD:
                     print('Invalid args: No third shot vaccinations in this country')
                     return 1
-                Builder(args.country).build_KEY_PFIZER_THIRD()
-                Builder(args.country).build_KEY_MODERNA_THIRD()
+                motives.append(docto.KEY_PFIZER_THIRD)
+                motives.append(docto.KEY_MODERNA_THIRD)
             else:
-                Builder(args.country).build_KEY_PFIZER()
-                Builder(args.country).build_KEY_MODERNA()
-                Builder(args.country).build_KEY_JANSSEN()
+                motives.append(docto.KEY_PFIZER)
+                motives.append(docto.KEY_MODERNA)
+                motives.append(docto.KEY_JANSSEN)
+                # motives.append(docto.KEY_ASTRAZENECA) #do not add AstraZeneca by default
         if args.pfizer:
             if args.only_second:
-                Builder(args.country).build_KEY_PFIZER_SECOND()
+                motives.append(docto.KEY_PFIZER_SECOND)
             elif args.only_third:
                 if not docto.KEY_PFIZER_THIRD:  # not available in all countries
                     print('Invalid args: Pfizer has no third shot in this country')
                     return 1
-                Builder(args.country).build_KEY_PFIZER_THIRD()
+                motives.append(docto.KEY_PFIZER_THIRD)
             else:
-                Builder(args.country).build_KEY_PFIZER()
+                motives.append(docto.KEY_PFIZER)
         if args.moderna:
             if args.only_second:
-                Builder(args.country).build_KEY_MODERNA_SECOND()
+                motives.append(docto.KEY_MODERNA_SECOND)
             elif args.only_third:
                 if not docto.KEY_MODERNA_THIRD:  # not available in all countries
                     print('Invalid args: Moderna has no third shot in this country')
                     return 1
-                Builder(args.country).build_KEY_MODERNA_THIRD()
+                motives.append(docto.KEY_MODERNA_THIRD)
             else:
-                Builder(args.country).build_KEY_MODERNA()
+                motives.append(docto.KEY_MODERNA)
         if args.janssen:
             if args.only_second or args.only_third:
                 print('Invalid args: Janssen has no second or third shot')
                 return 1
             else:
-                Builder(args.country).build_KEY_JANSSEN()
+                motives.append(docto.KEY_JANSSEN)
         if args.astrazeneca:
             if args.only_second:
-                Builder(args.country).build_KEY_ASTRAZENECA_SECOND()
+                motives.append(docto.KEY_ASTRAZENECA_SECOND)
             elif args.only_third:
                 print('Invalid args: AstraZeneca has no third shot')
                 return 1
             else:
-                Builder(args.country).build_KEY_ASTRAZENECA()
-        motives = Builder(args.country).get_result()
+                motives.append(docto.KEY_ASTRAZENECA)
+
         vaccine_list = [docto.vaccine_motives[motive] for motive in motives]
 
         if args.start_date:
@@ -893,7 +834,6 @@ class Application:
                 return 1
         else:
             end_date = start_date + relativedelta(days=args.time_window)
-
         log('Starting to look for vaccine slots for %s %s between %s and %s...',
             docto.patient['first_name'], docto.patient['last_name'], start_date, end_date)
         log('Vaccines: %s', ', '.join(vaccine_list))
