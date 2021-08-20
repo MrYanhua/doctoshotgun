@@ -5,6 +5,7 @@ import logging
 import tempfile
 from time import sleep
 import json
+import types
 from urllib.parse import urlparse
 import datetime
 import argparse
@@ -26,54 +27,11 @@ from woob.browser.browsers import LoginBrowser
 from woob.browser.url import URL
 from woob.browser.pages import JsonPage, HTMLPage
 from woob.tools.log import createColoredFormatter
-from abc import ABCMeta, abstractmethod
 
 SLEEP_INTERVAL_AFTER_CONNECTION_ERROR = 5
 SLEEP_INTERVAL_AFTER_LOGIN_ERROR = 10
 SLEEP_INTERVAL_AFTER_CENTER = 1
 SLEEP_INTERVAL_AFTER_RUN = 5
-
-
-class IIterator(metaclass=ABCMeta):
-    @staticmethod
-    @abstractmethod
-    def has_next():
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def next():
-        pass
-
-
-class Iterable(IIterator):
-    def __init__(self, aggregates):
-        self.index = 0
-        self.aggregates = aggregates
-
-    def next(self):
-        if self.index < len(self.aggregates):
-            aggregate = self.aggregates[self.index]
-            self.index += 1
-            return aggregate
-        raise Exception("AtEndOfIteratorException", "At End of Iterator")
-
-    def has_next(self):
-        return self.index < len(self.aggregates)
-
-
-class IAggregate(metaclass=ABCMeta):
-    @staticmethod
-    @abstractmethod
-    def method():
-        pass
-
-
-class Aggregate(IAggregate):
-    @staticmethod
-    def method():
-        print("Go through!")
-
 
 try:
     from playsound import playsound as _playsound, PlaysoundException
@@ -135,9 +93,8 @@ class ChallengePage(JsonPage):
 
 class CentersPage(HTMLPage):
     def iter_centers_ids(self):
-        ITERABLE = Iterable(self.doc.xpath('//div[@class="js-dl-search-results-calendar"]'))
-        while ITERABLE.has_next():
-            data = json.loads(ITERABLE.next().attrib['data-props'])
+        for div in self.doc.xpath('//div[@class="js-dl-search-results-calendar"]'):
+            data = json.loads(div.attrib['data-props'])
             yield data['searchResultId']
 
     def get_next_page(self):
@@ -762,57 +719,26 @@ class Application:
         else:
             docto.patient = patients[0]
 
-        motives = []
+        #motives = []
         if not args.pfizer and not args.moderna and not args.janssen and not args.astrazeneca:
-            if args.only_second:
-                motives.append(docto.KEY_PFIZER_SECOND)
-                motives.append(docto.KEY_MODERNA_SECOND)
-                # motives.append(docto.KEY_ASTRAZENECA_SECOND) #do not add AstraZeneca by default
-            elif args.only_third:
-                if not docto.KEY_PFIZER_THIRD and not docto.KEY_MODERNA_THIRD:
-                    print('Invalid args: No third shot vaccinations in this country')
-                    return 1
-                motives.append(docto.KEY_PFIZER_THIRD)
-                motives.append(docto.KEY_MODERNA_THIRD)
-            else:
-                motives.append(docto.KEY_PFIZER)
-                motives.append(docto.KEY_MODERNA)
-                motives.append(docto.KEY_JANSSEN)
-                # motives.append(docto.KEY_ASTRAZENECA) #do not add AstraZeneca by default
+            strat0 = StrategyExample(docto, args.onlysecond, args.onlythird)
+            motives = strat0.execute()
         if args.pfizer:
-            if args.only_second:
-                motives.append(docto.KEY_PFIZER_SECOND)
-            elif args.only_third:
-                if not docto.KEY_PFIZER_THIRD:  # not available in all countries
-                    print('Invalid args: Pfizer has no third shot in this country')
-                    return 1
-                motives.append(docto.KEY_PFIZER_THIRD)
-            else:
-                motives.append(docto.KEY_PFIZER)
+            strat1 = StrategyExample(docto, args.onlysecond, args.onlythird, execute_pfizer())
+            strat1.execute()
+            motives = strat1.execute()
         if args.moderna:
-            if args.only_second:
-                motives.append(docto.KEY_MODERNA_SECOND)
-            elif args.only_third:
-                if not docto.KEY_MODERNA_THIRD:  # not available in all countries
-                    print('Invalid args: Moderna has no third shot in this country')
-                    return 1
-                motives.append(docto.KEY_MODERNA_THIRD)
-            else:
-                motives.append(docto.KEY_MODERNA)
+            strat2 = StrategyExample(docto, args.onlysecond, args.onlythird, execute_moderna())
+            strat2.execute()
+            motives = strat2.execute()
         if args.janssen:
-            if args.only_second or args.only_third:
-                print('Invalid args: Janssen has no second or third shot')
-                return 1
-            else:
-                motives.append(docto.KEY_JANSSEN)
+            strat3 = StrategyExample(docto, args.onlysecond, args.onlythird, execute_janssen())
+            strat3.execute()
+            motives = strat3.execute()
         if args.astrazeneca:
-            if args.only_second:
-                motives.append(docto.KEY_ASTRAZENECA_SECOND)
-            elif args.only_third:
-                print('Invalid args: AstraZeneca has no third shot')
-                return 1
-            else:
-                motives.append(docto.KEY_ASTRAZENECA)
+            strat4 = StrategyExample(docto, args.onlysecond, args.onlythird, execute_astrazaneca())
+            strat4.execute()
+            motives = strat4.execute()
 
         vaccine_list = [docto.vaccine_motives[motive] for motive in motives]
 
@@ -911,6 +837,77 @@ class Application:
                 print(message)
                 return 1
         return 0
+
+
+class StrategyExample:
+    def __init__(self, docto, onlysecond, onlythird, func = None):
+        self.motives = []
+        self.docto = docto
+        self.onlysecond = onlysecond
+        self.onlythird = onlythird
+        if func is not None:
+            self.execute = types.MethodType(func, self)
+
+    def execute(self):
+        if self.only_second:
+            self.motives.append(self.docto.KEY_PFIZER_SECOND)
+            self.motives.append(self.docto.KEY_MODERNA_SECOND)
+            # motives.append(docto.KEY_ASTRAZENECA_SECOND) #do not add AstraZeneca by default
+        elif self.only_third:
+            if not self.docto.KEY_PFIZER_THIRD and not self.docto.KEY_MODERNA_THIRD:
+                print('Invalid args: No third shot vaccinations in this country')
+                return 1
+            self.motives.append(self.docto.KEY_PFIZER_THIRD)
+            self.motives.append(self.docto.KEY_MODERNA_THIRD)
+        else:
+            self.motives.append(self.docto.KEY_PFIZER)
+            self.motives.append(self.docto.KEY_MODERNA)
+            self.motives.append(self.docto.KEY_JANSSEN)
+        return self.motives
+
+def execute_pfizer(self):
+        if self.only_second:
+            self.motives.append(self.docto.KEY_PFIZER_SECOND)
+        elif self.only_third:
+            if not self.docto.KEY_PFIZER_THIRD:  # not available in all countries
+                print('Invalid args: Pfizer has no third shot in this country')
+                return 1
+            self.motives.append(self.docto.KEY_PFIZER_THIRD)
+        else:
+            self.motives.append(self.docto.KEY_PFIZER)
+        return self.motives
+
+
+def execute_moderna(self):
+    if self.only_second:
+        self.motives.append(self.docto.KEY_MODERNA_SECOND)
+    elif self.only_third:
+        if not self.docto.KEY_MODERNA_THIRD:  # not available in all countries
+            print('Invalid args: Moderna has no third shot in this country')
+            return 1
+        self.motives.append(self.docto.KEY_MODERNA_THIRD)
+    else:
+        self.motives.append(self.docto.KEY_MODERNA)
+    return self.motives
+
+def execute_janssen(self):
+    if self.only_second or self.only_third:
+        print('Invalid args: Janssen has no second or third shot')
+        return 1
+    else:
+        self.motives.append(self.docto.KEY_JANSSEN)
+    return self.motives
+
+def execute_astrazaneca(self):
+    if self.only_second:
+        self.motives.append(self.docto.KEY_ASTRAZENECA_SECOND)
+    elif self.only_third:
+        print('Invalid args: AstraZeneca has no third shot')
+        return 1
+    else:
+        self.motives.append(self.docto.KEY_ASTRAZENECA)
+    return self.motives
+
 
 
 if __name__ == '__main__':
